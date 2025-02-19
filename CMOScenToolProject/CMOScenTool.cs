@@ -10,6 +10,8 @@ using K4os.Compression.LZ4.Legacy;
 using Microsoft.VisualBasic;
 using Microsoft.VisualBasic.CompilerServices;
 using System.Runtime.CompilerServices;
+using System;
+using System.Xml.Linq;
 
 
 
@@ -187,6 +189,79 @@ namespace CMOScenToolProject
         }
     }
 
+    public class Crypto
+    {
+        private static byte[] byte_0;
+
+        private static string string_0;
+
+        public static string string_1;
+
+        private static object object_0;
+
+        static Crypto()
+        {
+            byte_0 = Encoding.ASCII.GetBytes("o6806642kbM7c5");
+            string_0 = "6b887c5ac993e7ae98c4c08e19f56429fdeb440755a4701b-7e80-4e57-9b96-3e9bee544da1942448a6-3112-4975-a68c-68782c80c0af";
+            string_1 = "EBA66B7C-B09A-4EE0E860AE-410C-410D-8E7E-0AC92423D79F8F-8CD3-4BC7C54842BD8CC4DF32-BAAC-4C5F-8120-FD02B6131532";
+            object_0 = RuntimeHelpers.GetObjectValue(new object());
+        }
+
+        private static byte[] smethod_0(Stream stream_0)
+        {
+            byte[] array = new byte[4];
+            if (stream_0.Read(array, 0, array.Length) != array.Length)
+            {
+                throw new SystemException("Stream did not contain properly formatted byte array");
+            }
+            byte[] array2 = new byte[BitConverter.ToInt32(array, 0) - 1 + 1];
+            if (stream_0.Read(array2, 0, array2.Length) != array2.Length)
+            {
+                throw new SystemException("Did not read byte array properly");
+            }
+            return array2;
+        }
+
+        public static string DecryptStringAES(string cipherText, string sharedKey = "")
+        {
+            if (!string.IsNullOrEmpty(cipherText))
+            {
+                if (string.IsNullOrEmpty(sharedKey) && string.IsNullOrEmpty(sharedKey))
+                {
+                    sharedKey = string_0;
+                }
+                RijndaelManaged rijndaelManaged = null;
+                string result = null;
+                try
+                {
+                    Rfc2898DeriveBytes rfc2898DeriveBytes = new Rfc2898DeriveBytes(sharedKey, byte_0);
+                    byte[] source = Convert.FromBase64String(cipherText);
+                    // using MemoryTributary memoryTributary = new MemoryTributary(source);
+                    using MemoryStream memoryTributary = new MemoryStream(source);
+                    rijndaelManaged = new RijndaelManaged();
+                    rijndaelManaged.Key = rfc2898DeriveBytes.GetBytes((int)Math.Round((double)rijndaelManaged.KeySize / 8.0));
+                    rijndaelManaged.IV = smethod_0(memoryTributary);
+                    ICryptoTransform transform = rijndaelManaged.CreateDecryptor(rijndaelManaged.Key, rijndaelManaged.IV);
+                    using CryptoStream stream = new CryptoStream(memoryTributary, transform, CryptoStreamMode.Read);
+                    using StreamReader streamReader = new StreamReader(stream);
+                    result = streamReader.ReadToEnd();
+                }
+                catch (Exception projectError)
+                {
+                    ProjectData.SetProjectError(projectError);
+                    _ = Debugger.IsAttached;
+                    ProjectData.ClearProjectError();
+                }
+                finally
+                {
+                    rijndaelManaged?.Clear();
+                }
+                return result;
+            }
+            throw new ArgumentNullException("cipherText");
+        }
+    }
+
     public class CMOScenTool
     {
         public static ScenContainer LoadScenContainer(string xml)
@@ -200,5 +275,16 @@ namespace CMOScenToolProject
 
             return obj;
         }
+
+        public static string GetDecryptedDescription(string xml)
+        {
+            XDocument xmlDoc = XDocument.Parse(xml);
+            var descriptionEncryptedElements = xmlDoc.Descendants("Description_Encrypted");
+            var sv = descriptionEncryptedElements.First().Value;
+
+            return Crypto.DecryptStringAES(sv, "DaltonTrumbo");
+        }
+
+        public static string GetDecryptedDescription(ScenContainer scenContainer) => GetDecryptedDescription(scenContainer.GetScenarioObject_AsXML());
     }
 }
